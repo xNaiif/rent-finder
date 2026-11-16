@@ -123,6 +123,20 @@ INPUT_MAX_PRICE=40000 INPUT_TYPES=شقق INPUT_SOURCES=عقار python -m rentfi
 ```
 ثم افتح `site/index.html`.
 
+## صفحة البحث الموحدة
+
+يوفر المشروع الآن صفحة واحدة تفاعلية عبر `app.py`. الصفحة نفسها تحتوي الفلاتر والبحث والنتائج، بينما يبقى Playwright على الخادم ولا تُرسل أي مفاتيح أو جلسات إلى المتصفح.
+
+للتشغيل المحلي:
+
+```
+pip install -r requirements.txt
+python -m playwright install chromium
+python app.py
+```
+
+ثم افتح `http://localhost:8000`. للنشر على Render: أنشئ Web Service من هذا المستودع، واختر Docker؛ ملف `render.yaml` و`Dockerfile` يجهزان الخدمة تلقائياً.
+
 ## ملاحظة
 
 للاستخدام الشخصي فقط وبوتيرة هادئة. راجع شروط استخدام كل منصة قبل رفع حجم البحث. لا يحاول المشروع تجاوز تسجيل الدخول أو CAPTCHA أو الحجب، وقد تظهر منصة بحالة «محجوبة» بدلاً من النتائج.
