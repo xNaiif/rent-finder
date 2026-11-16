@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from rentfinder.config import ConfigError, Settings
 from rentfinder.report import build_payload
-from rentfinder.search import BrowserFetcher, run_search
+from rentfinder.search import UrllibFetcher, run_search
 
 ROOT = Path(__file__).parent
 app = FastAPI(title="Riyadh Property Search", docs_url=None, redoc_url=None)
@@ -60,7 +60,7 @@ async def search(request: SearchRequest) -> dict:
 
 
 def _run_search(settings: Settings):
-    with BrowserFetcher() as fetcher:
+    with UrllibFetcher() as fetcher:
         return run_search(settings, fetcher, max_runtime_seconds=45)
 
 

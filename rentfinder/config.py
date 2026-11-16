@@ -21,6 +21,7 @@ REQUEST_PAUSE = (1.0, 2.0)                  # seconds between page loads (polite
 FETCH_TIMEOUT_SECONDS = 15                  # one browser navigation maximum
 WAIT_FOR_LISTING_SECONDS = 5                # client-rendered listing wait
 FETCH_TRIES = 2                             # avoid blocking the whole page on one source
+URLLIB_TIMEOUT_SECONDS = 8                  # lightweight source request maximum
 MAX_CONSECUTIVE_FAILURES = 2                # stop a category after N failed pages in a row
 MAX_RUNTIME_SECONDS = 40 * 60               # stop scanning gracefully and publish what we have
 DETAIL_LIMIT = 150                          # max detail pages opened when an age filter is set

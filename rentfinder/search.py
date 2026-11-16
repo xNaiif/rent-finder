@@ -14,7 +14,8 @@ from typing import Callable, Protocol
 
 from .config import (DETAIL_LIMIT, FETCH_TIMEOUT_SECONDS, FETCH_TRIES, LOG_DIR,
                      MAX_CONSECUTIVE_FAILURES, MAX_RUNTIME_SECONDS, REQUEST_PAUSE,
-                     Settings, WAIT_FOR_LISTING_SECONDS, annotate, log_group)
+                     Settings, URLLIB_TIMEOUT_SECONDS, WAIT_FOR_LISTING_SECONDS,
+                     annotate, log_group)
 from .parser import Listing, fold, parse_added, parse_page
 from .sites import SITES, Category, Site
 
@@ -79,7 +80,7 @@ class UrllibFetcher:
     def get(self, url: str, wait_pattern: str | None = None) -> tuple[int, str]:
         request = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "ar-SA,ar;q=0.9"})
         try:
-            with urllib.request.urlopen(request, timeout=40) as response:
+            with urllib.request.urlopen(request, timeout=URLLIB_TIMEOUT_SECONDS) as response:
                 return response.status, response.read().decode("utf-8", "replace")
         except urllib.error.HTTPError as exc:
             return exc.code, ""

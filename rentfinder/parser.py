@@ -110,7 +110,8 @@ def extract_price(text: str, site: Site) -> tuple[int | None, str | None]:
     for rx in site.price_res:
         match = rx.search(text)
         if match:
-            period = site.periods.get(match.group(2).lower())
+            period_word = match.group(2) if match.lastindex and match.lastindex >= 2 else None
+            period = site.periods.get(period_word.lower()) if period_word else site.default_period
             if period:
                 return _to_int(match.group(1)), period
     return None, None
@@ -170,7 +171,8 @@ def _parse_card(card, listing_id: str, href: str, site: Site, category: Category
         title = norm(heading.get_text(" ", strip=True)) if heading else ""
     if not title:
         lines = [norm(s) for s in card.stripped_strings if norm(s)]
-        title = lines[0][:120] if lines else ""
+        descriptive = next((line for line in lines if re.search(r"للإيجار|للايجار|للبيع|rent|sale", line, re.I)), None)
+        title = (descriptive or max(lines, key=len, default=""))[:120]
 
     area_match = AREA_RE.search(text)
     visit_match = VISIT_RE.search(text)

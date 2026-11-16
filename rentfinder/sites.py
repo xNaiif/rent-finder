@@ -45,6 +45,7 @@ class Site:
     build_url: Callable[[Category, tuple[str, ...], int], str]
     hood_last: bool = False                    # take the last district match in the card (not the first)
     keep: Callable[[str], bool] = lambda text: True    # card-text filter (e.g. region check)
+    default_period: str | None = None          # rental-only pages may omit the period label
 
 
 def _quote_path(parts) -> str:
@@ -116,10 +117,10 @@ AQAR = Site(
     key="aqar", label="عقار", base="https://sa.aqar.fm",
     # listing links end with "-<6-9 digit id>"; pagination links are plain 1-4 digit segments
     id_re=re.compile(r"-(\d{6,9})(?:[/?#]|$)"),
-    price_res=(re.compile(r"(\d[\d,]*)\s*\S?\s*/\s*(سنوي|شهري|يومي)"),),
+    price_res=(re.compile(r"(\d[\d,]*)\s*(?:§|ريال)?\s*(?:/\s*(سنوي|شهري|يومي))?"),),
     periods={"سنوي": "annual", "شهري": "monthly", "يومي": "daily"},
     hood_res=(re.compile(r"حي\s+([^،,]+?)\s*[،,]"),),
-    plan=_aqar_plan, build_url=_aqar_url,
+    plan=_aqar_plan, build_url=_aqar_url, default_period="annual",
 )
 
 # ───────────────────────── wasalt.sa ─────────────────────────
@@ -139,9 +140,9 @@ def _wasalt_url(category: Category, path: tuple[str, ...], page: int) -> str:
 WASALT = Site(
     key="wasalt", label="وصلت", base="https://wasalt.sa",
     id_re=re.compile(r"/property/rent/[^?#]*?-(\d{4,9})(?:[/?#]|$)"),
-    price_res=(re.compile(r"(\d[\d,]*)\s*SAR\s*/?\s*(yearly|monthly|year|month|سنة|شهر)", re.I),),
+    price_res=(re.compile(r"(\d[\d,]*)\s*(?:SAR\s*/?\s*)?(yearly|monthly|year|month|سنة|شهر)", re.I),),
     periods={"yearly": "annual", "year": "annual", "سنة": "annual", "monthly": "monthly", "month": "monthly", "شهر": "monthly"},
-    hood_res=(re.compile(r"([A-Za-z' .\-]+?),\s*East Riyadh,\s*Riyadh"),),
+    hood_res=(re.compile(r"((?:East|Al)\s+[A-Za-z' .\-]+?),\s*East Riyadh,\s*Riyadh"),),
     hood_last=True,
     plan=_wasalt_plan, build_url=_wasalt_url,
     keep=lambda text: "East Riyadh" in text or "شرق الرياض" in text,
@@ -154,13 +155,13 @@ def _haraj_plan(s: Settings) -> list[Category]:
     if s.period == "monthly":
         return []
     if s.types == "apartments":
-        return [Category("haraj_apt", "شقة", (("شقة للايجار الرياض",),))]
+        return [Category("haraj_apt", "شقة", (("عقار",),))]
     if s.types in ("rest", "chalets", "camps"):
         label = "مخيم" if s.types == "camps" else "استراحة"
         tags = ("شاليه",) if s.types == "chalets" else ("مخيم",) if s.types == "camps" else ()
-        return [Category("haraj_rest", label, ((f"{label} للايجار الرياض",),), tags)]
-    return [Category("haraj_apt", "شقة", (("شقة للايجار الرياض",),)),
-            Category("haraj_rest", "استراحة", (("استراحة للايجار الرياض",),))]
+        return [Category("haraj_rest", label, (("عقار",),), tags)]
+    return [Category("haraj_apt", "شقة", (("عقار",),)),
+            Category("haraj_rest", "استراحة", (("عقار",),))]
 
 
 def _haraj_url(category: Category, path: tuple[str, ...], page: int) -> str:
@@ -173,13 +174,14 @@ HARAJ = Site(
     key="haraj", label="حراج", base="https://haraj.com.sa",
     id_re=re.compile(r"/(\d{8,})(?:/|[?#]|$)"),
     price_res=(
-        re.compile(r"(\d[\d,]*)\s*(?:ريال|ر\.س|SAR)\s*(سنوي|شهري)", re.I),
-        re.compile(r"(?:السعر|price)\s*[:：]?\s*(\d[\d,]*)\s*(سنوي|شهري)", re.I),
+        re.compile(r"(\d[\d,.]*)\s*(?:ريال|ر\.س|SAR)?\s*(سنوي|شهري)?", re.I),
+        re.compile(r"(?:السعر|price)\s*[:：]?\s*(\d[\d,.]*)", re.I),
     ),
     periods={"سنوي": "annual", "شهري": "monthly"},
     hood_res=(re.compile(r"(?:حي|في\s+حي)\s+([^،,]+?)(?=\s+(?:الرياض|Riyadh)\b|[،,]|$)", re.I),),
     plan=_haraj_plan, build_url=_haraj_url,
-    keep=lambda text: "الرياض" in text,
+    keep=lambda text: "الرياض" in text and "للايجار" in text,
+    default_period="annual",
 )
 
 # ───────────────────────── dealapp.sa (Daleel) ─────────────────────────
