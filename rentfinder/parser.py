@@ -73,6 +73,14 @@ class Listing:
     added: str | None = None   # publication date from the details page (ISO), if found
     rank: int = 0              # scan order within the run (lower = earlier in results)
     alt: list = field(default_factory=list)   # same unit on other platforms: [{source, url}]
+    original_price: int | None = None
+    price_confidence: str = "high"
+    price_flags: tuple[str, ...] = ()
+    bedrooms: int | None = None
+    bathrooms: int | None = None
+    property_type: str | None = None
+    direction: str | None = None
+    unit_details: str | None = None
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -83,6 +91,14 @@ class Listing:
 # ───────────────────────── patterns ─────────────────────────
 
 AREA_RE = re.compile(r"(\d[\d,.]*)\s*(?:م(?:2|²)|sqm)", re.I)
+BEDROOM_RE = re.compile(r"(?:غرف(?:ة|تين|تان)?\s*(?:نوم)?|bedrooms?|beds?)\s*[:：-]?\s*(\d+)|(?:(\d+)\s*(?:غرف|bedrooms?|beds?))", re.I)
+BATHROOM_RE = re.compile(r"(?:حمامات?|دورات?\s*مياه|bathrooms?)\s*[:：-]?\s*(\d+)|(?:(\d+)\s*(?:حمام|حمامات|bathrooms?))", re.I)
+PROPERTY_TYPES = (("فيلا", re.compile(r"فيلا|villa", re.I)), ("دور", re.compile(r"دور\s+(?:أرضي|علوي)?|floor", re.I)),
+                  ("ملحق", re.compile(r"ملحق|annex", re.I)), ("استوديو", re.compile(r"استوديو|ستوديو|studio", re.I)),
+                  ("شقة", re.compile(r"شقه|شقة|apartment|flat", re.I)), ("استراحة", re.compile(r"استراحة|rest house", re.I)))
+_DIRECTIONS = (("شرق", re.compile(r"شرق|east", re.I)), ("غرب", re.compile(r"غرب|west", re.I)),
+               ("شمال", re.compile(r"شمال|north", re.I)), ("جنوب", re.compile(r"جنوب|south", re.I)),
+               ("وسط", re.compile(r"وسط|central|downtown", re.I)))
 VISIT_RE = re.compile(r"في\s*:\s*(\d{1,2})\s+(\S+)\s+(\d{4})")
 
 _TAGS = (
@@ -107,6 +123,7 @@ def _to_int(text: str) -> int | None:
 
 
 def extract_price(text: str, site: Site) -> tuple[int | None, str | None]:
+    text = norm(text)
     for rx in site.price_res:
         match = rx.search(text)
         if match:
@@ -115,6 +132,40 @@ def extract_price(text: str, site: Site) -> tuple[int | None, str | None]:
             if period:
                 return _to_int(match.group(1)), period
     return None, None
+
+
+def analyze_price(text: str, site: Site) -> tuple[int | None, str | None, int | None, str, tuple[str, ...]]:
+    """Return displayed amount, basis, annual equivalent, confidence, and flags."""
+    amount, period = extract_price(text, site)
+    if amount is None or period is None:
+        return amount, period, None, "low", ("period_missing",)
+    lower = fold(text)
+    installment = re.search(r"(?:على\s*)?(?:دفعتين|دفعتان|two payments|2 payments)", lower)
+    four = re.search(r"(?:على\s*)?(?:اربع دفعات|أربع دفعات|4 payments|four payments)", lower)
+    if period == "monthly":
+        return amount, period, amount * 12, "high", ()
+    if installment and not re.search(r"سنوي|annual|yearly", lower):
+        return amount, "installment", amount * 2, "medium", ("payment_count_explicit",)
+    if four and not re.search(r"سنوي|annual|yearly", lower):
+        return amount, "installment", amount * 4, "medium", ("payment_count_explicit",)
+    flags = ("installment_schedule_only",) if installment or four else ()
+    return amount, period, amount, "high", flags
+
+
+def _detail_number(rx: re.Pattern, text: str) -> int | None:
+    match = rx.search(text)
+    if not match:
+        return None
+    return _to_int(match.group(1) or match.group(2))
+
+
+def extract_details(text: str, title: str, fallback_kind: str) -> tuple[int | None, int | None, str, str | None, str | None]:
+    combined = norm(f"{title} {text}")
+    property_type = next((label for label, rx in PROPERTY_TYPES if rx.search(combined)), fallback_kind)
+    direction = next((label for label, rx in _DIRECTIONS if rx.search(combined)), None)
+    details = "، ".join(label for label, rx in (("مفروش", re.compile(r"مفروش|furnished", re.I)),
+                                                   ("مدخل مستقل", re.compile(r"مدخل مستقل|private entrance", re.I))) if rx.search(combined)) or None
+    return _detail_number(BEDROOM_RE, combined), _detail_number(BATHROOM_RE, combined), property_type, direction, details
 
 
 # ───────────────────────── page parsing ─────────────────────────
@@ -157,7 +208,7 @@ def _parse_card(card, listing_id: str, href: str, site: Site, category: Category
     text = norm(" ".join(card.stripped_strings))
     if not site.keep(text):
         return None
-    price, period = extract_price(text, site)
+    price, period, annual, confidence, price_flags = analyze_price(text, site)
     if price is None or period is None or period == "daily":
         return None
 
@@ -178,6 +229,7 @@ def _parse_card(card, listing_id: str, href: str, site: Site, category: Category
     visit_match = VISIT_RE.search(text)
     tags = [name for name, rx in _TAGS if rx.search(fold(title))]
     tags += [t for t in category.force_tags if t not in tags]
+    bedrooms, bathrooms, property_type, direction, unit_details = extract_details(text, title, category.kind)
 
     return Listing(
         id=listing_id,
@@ -190,10 +242,18 @@ def _parse_card(card, listing_id: str, href: str, site: Site, category: Category
         area=_to_int(area_match.group(1)) if area_match else None,
         price=price,
         period=period,
-        annual=price if period == "annual" else price * 12,
+        annual=annual,
         visited=to_iso_date(*visit_match.groups()) if visit_match else None,
         suspicious=(period == "annual" and price < SUSPICIOUS_ANNUAL_BELOW)
         or (period == "monthly" and price < SUSPICIOUS_MONTHLY_BELOW),
+        original_price=price,
+        price_confidence=confidence,
+        price_flags=price_flags,
+        bedrooms=bedrooms,
+        bathrooms=bathrooms,
+        property_type=property_type,
+        direction=direction,
+        unit_details=unit_details,
     )
 
 

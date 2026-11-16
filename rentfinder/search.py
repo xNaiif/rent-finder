@@ -140,6 +140,11 @@ def matches(listing: Listing, settings: Settings) -> bool:
         return False
     if settings.min_area and (listing.area is None or listing.area < settings.min_area):
         return False
+    if settings.min_bedrooms and (listing.bedrooms is None or listing.bedrooms < settings.min_bedrooms):
+        return False
+    direction = {"شرق": "east", "غرب": "west", "شمال": "north", "جنوب": "south", "وسط": "central"}.get(listing.direction, listing.direction)
+    if settings.direction != "all" and listing.direction and direction != settings.direction:
+        return False
     if settings.districts:
         hood = fold(listing.hood)
         wanted = [re.sub(r"^حي\s+", "", fold(d)) for d in settings.districts]

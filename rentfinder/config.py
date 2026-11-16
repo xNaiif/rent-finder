@@ -126,6 +126,8 @@ class Settings:
     keywords: tuple[str, ...] = ()   # every keyword must appear in the title
     min_area: int = 0
     max_age_days: int = 0       # 0 = no age filter
+    min_bedrooms: int = 0
+    direction: str = "all"
     pages: int = 25             # pages scanned per category (about 25 listings each)
     sources: tuple[str, ...] = SOURCE_KEYS   # which platforms to search
 
@@ -141,6 +143,8 @@ class Settings:
             keywords=_words(env, "keywords"),
             min_area=_int(env, "min_area", 0, 0, 1_000_000),
             max_age_days=_int(env, "max_age_days", 0, 0, 365),
+            min_bedrooms=_int(env, "min_bedrooms", 0, 0, 20),
+            direction=_choice(env, "direction", {"all":"all", "الكل":"all", "east":"east", "شرق":"east", "west":"west", "غرب":"west", "north":"north", "شمال":"north", "south":"south", "جنوب":"south", "central":"central", "وسط":"central"}, "all"),
             pages=_int(env, "pages", 25, 1, 250),
             sources=_sources(env),
         )

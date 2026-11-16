@@ -18,7 +18,8 @@ TEMPLATE_PATH = Path(__file__).resolve().parent / "templates" / "report.html"
 RIYADH = timezone(timedelta(hours=3))      # Saudi Arabia has no daylight saving time
 STATUS_LABELS = {"ok": "تعمل", "partial": "جزئي", "empty": "لا إعلانات", "blocked": "محجوبة؟", "skipped": "غير مطلوبة"}
 CSV_FIELDS = ["source", "id", "url", "kind", "tags", "title", "hood", "area", "price", "period",
-              "annual", "visited", "added", "suspicious"]
+              "annual", "original_price", "price_confidence", "price_flags", "bedrooms", "bathrooms",
+              "property_type", "direction", "unit_details", "visited", "added", "suspicious"]
 
 
 def describe(settings: Settings, result: SearchResult) -> list[str]:
@@ -72,7 +73,7 @@ def write_csv(result: SearchResult, path: Path) -> None:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
         writer.writeheader()
         for item in result.listings:
-            writer.writerow({**item.to_dict(), "tags": " ".join(item.tags)})
+            writer.writerow({**item.to_dict(), "tags": " ".join(item.tags), "price_flags": " ".join(item.price_flags)})
 
 
 def _cell(text: str) -> str:

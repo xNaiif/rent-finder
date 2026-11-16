@@ -23,6 +23,11 @@ class SearchRequest(BaseModel):
     period: str = "الكل"
     sources: list[str] = ["الكل"]
     districts: str = ""
+    keywords: str = ""
+    min_area: int = Field(default=0, ge=0, le=1_000_000)
+    min_bedrooms: int = Field(default=0, ge=0, le=20)
+    direction: str = "الكل"
+    max_age_days: int = Field(default=0, ge=0, le=365)
     pages: int = Field(default=1, ge=1, le=25)
 
 
@@ -47,6 +52,11 @@ async def search(request: SearchRequest) -> dict:
         "INPUT_PERIOD": request.period,
         "INPUT_SOURCES": ",".join(request.sources),
         "INPUT_DISTRICTS": request.districts,
+        "INPUT_KEYWORDS": request.keywords,
+        "INPUT_MIN_AREA": str(request.min_area),
+        "INPUT_MIN_BEDROOMS": str(request.min_bedrooms),
+        "INPUT_DIRECTION": request.direction,
+        "INPUT_MAX_AGE_DAYS": str(request.max_age_days),
         "INPUT_PAGES": str(request.pages),
     }
     try:

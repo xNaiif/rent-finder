@@ -13,8 +13,8 @@ from pathlib import Path
 
 from rentfinder import report
 from rentfinder.config import ConfigError, Settings
-from rentfinder.parser import (Listing, fold, parse_added, parse_page,
-                               parse_relative)
+from rentfinder.parser import (Listing, analyze_price, extract_details, fold,
+                               parse_added, parse_page, parse_relative)
 from rentfinder.search import (apply_age_filter, matches, merge_duplicates,
                                recency_key, run_search)
 from rentfinder.sites import AQAR, BAYUT, DALEEL, HARAJ, SITES, WASALT, Category
@@ -162,6 +162,13 @@ class AdditionalSiteParserTests(unittest.TestCase):
         items, ids = parse_page(DALEEL_HTML, DALEEL, Category("daleel", "شقة", (("x",),)))
         self.assertEqual(ids, ["987654"])
         self.assertEqual((items[0].source, items[0].annual, items[0].hood), ("daleel", 40000, "اليرموك"))
+
+    def test_price_normalization_and_details(self):
+        self.assertEqual(analyze_price("٦٬٠٠٠ ريال شهرياً", BAYUT), (6000, "monthly", 72000, "high", ()))
+        self.assertEqual(analyze_price("20,000 على دفعتين", AQAR)[:3], (20000, "installment", 40000))
+        bedrooms, bathrooms, kind, direction, details = extract_details(
+            "3 غرف نوم، 2 حمام، 120 م²، مفروش، شرق الرياض", "شقة للإيجار", "شقة")
+        self.assertEqual((bedrooms, bathrooms, kind, direction, details), (3, 2, "شقة", "شرق", "مفروش"))
 
 
 class DateTests(unittest.TestCase):

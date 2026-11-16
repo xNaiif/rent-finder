@@ -79,10 +79,11 @@ BAYUT = Site(
     key="bayut", label="بيوت", base="https://www.bayut.sa",
     id_re=re.compile(r"(?:%D8%AA%D9%81%D8%A7%D8%B5%D9%8A%D9%84|تفاصيل)-(\d+)\.html", re.I),
     price_res=(
-        re.compile(r"(?:⃁|﷼|ريال|SAR)\s*(\d[\d,.]*)\s*(سنوي|شهري|يومي)"),
-        re.compile(r"(?<!ادفع )(\d[\d,]*)\s*(سنوي|شهري|يومي)"),
+           re.compile(r"(?:⃁|﷼|ريال|SAR)\s*(\d[\d,.]*)\s*(سنوي(?:اً)?|شهري(?:اً)?|يومي)"),
+           re.compile(r"(?<!ادفع )(\d[\d,]*)\s*(سنوي(?:اً)?|شهري(?:اً)?|يومي)"),
+        re.compile(r"(\d[\d,.]*)\s*(?:ريال|ر\.س|SAR)\s*(سنوي(?:اً)?|شهري(?:اً)?|يومي)", re.I),
     ),
-    periods={"سنوي": "annual", "شهري": "monthly", "يومي": "daily"},
+    periods={"سنوي": "annual", "سنويا": "annual", "سنوياً": "annual", "شهري": "monthly", "شهريا": "monthly", "شهرياً": "monthly", "يومي": "daily"},
     hood_res=(
         re.compile(r"حي\s+([^،,]+?)\s*،\s*(?:شرق|غرب|شمال|جنوب|وسط)\s*الرياض"),
         re.compile(r"حي\s+(\S+(?:\s\S+)?)"),
@@ -117,8 +118,8 @@ AQAR = Site(
     key="aqar", label="عقار", base="https://sa.aqar.fm",
     # listing links end with "-<6-9 digit id>"; pagination links are plain 1-4 digit segments
     id_re=re.compile(r"-(\d{6,9})(?:[/?#]|$)"),
-    price_res=(re.compile(r"(\d[\d,]*)\s*(?:§|ريال)?\s*(?:/\s*(سنوي|شهري|يومي))?"),),
-    periods={"سنوي": "annual", "شهري": "monthly", "يومي": "daily"},
+    price_res=(re.compile(r"(\d[\d,]*)\s*(?:§|ريال)?\s*(?:/\s*(سنوي(?:اً)?|شهري(?:اً)?|يومي))?"),),
+    periods={"سنوي": "annual", "سنويا": "annual", "سنوياً": "annual", "شهري": "monthly", "شهريا": "monthly", "شهرياً": "monthly", "يومي": "daily"},
     hood_res=(re.compile(r"حي\s+([^،,]+?)\s*[،,]"),),
     plan=_aqar_plan, build_url=_aqar_url, default_period="annual",
 )
