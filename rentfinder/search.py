@@ -12,9 +12,9 @@ from datetime import date
 from pathlib import Path
 from typing import Callable, Protocol
 
-from .config import (DETAIL_LIMIT, LOG_DIR, MAX_CONSECUTIVE_FAILURES,
-                     MAX_RUNTIME_SECONDS, REQUEST_PAUSE, Settings, annotate,
-                     log_group)
+from .config import (DETAIL_LIMIT, FETCH_TIMEOUT_SECONDS, FETCH_TRIES, LOG_DIR,
+                     MAX_CONSECUTIVE_FAILURES, MAX_RUNTIME_SECONDS, REQUEST_PAUSE,
+                     Settings, WAIT_FOR_LISTING_SECONDS, annotate, log_group)
 from .parser import Listing, fold, parse_added, parse_page
 from .sites import SITES, Category, Site
 
@@ -54,10 +54,10 @@ class BrowserFetcher:
         return self
 
     def get(self, url: str, wait_pattern: str | None = None) -> tuple[int, str]:
-        response = self._page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-        if wait_pattern:
+        response = self._page.goto(url, wait_until="domcontentloaded", timeout=FETCH_TIMEOUT_SECONDS * 1000)
+        if wait_pattern and response and response.status == 200:
             try:   # wait until at least one listing link exists (pages render client-side)
-                self._page.wait_for_function(_WAIT_JS, arg=wait_pattern, timeout=20_000)
+                self._page.wait_for_function(_WAIT_JS, arg=wait_pattern, timeout=WAIT_FOR_LISTING_SECONDS * 1000)
             except Exception:  # noqa: BLE001 - a page may legitimately have no listings
                 pass
         return (response.status if response else 0), self._page.content()
@@ -106,7 +106,7 @@ def dump_debug(name: str, html: str) -> None:
     log.info("saved debug snapshot %s", name)
 
 
-def fetch_with_retry(fetcher: Fetcher, url: str, *, tries: int = 3, wait_pattern: str | None = None,
+def fetch_with_retry(fetcher: Fetcher, url: str, *, tries: int = FETCH_TRIES, wait_pattern: str | None = None,
                      sleep: Callable[[float], None] = time.sleep, debug_name: str | None = None) -> str | None:
     last_html = ""
     for attempt in range(1, tries + 1):
@@ -120,7 +120,7 @@ def fetch_with_retry(fetcher: Fetcher, url: str, *, tries: int = 3, wait_pattern
             log.warning("bad response status=%s blocked=%s (%d/%d)", status, looks_blocked(html), attempt, tries)
             last_html = html
         if attempt < tries:
-            sleep(5 * attempt)
+            sleep(1 * attempt)
     if debug_name:
         dump_debug(debug_name, last_html)
     return None
@@ -216,6 +216,11 @@ def _scan_category(site: Site, category: Category, settings: Settings, fetcher: 
     # Page 1 decides which candidate URL slug works (some slugs were not confirmed).
     path, first = None, None
     for candidate in category.paths:
+        if clock() > deadline:
+            stats.partial = True
+            st.status = "partial"
+            annotate("warning", "تم الوصول للحد الزمني أثناء فحص المنصة")
+            break
         url = site.build_url(category, candidate, 1)
         html = fetch_with_retry(fetcher, url, wait_pattern=site.id_re.pattern, sleep=sleep,
                                 debug_name=f"{category.key}_p1.html")
@@ -279,9 +284,10 @@ def _scan_category(site: Site, category: Category, settings: Settings, fetcher: 
 
 
 def scan(settings: Settings, fetcher: Fetcher, *, sleep: Callable[[float], None] = time.sleep,
-         clock: Callable[[], float] = time.monotonic) -> tuple[dict[str, Listing], ScanStats]:
+         clock: Callable[[], float] = time.monotonic,
+         max_runtime_seconds: int = MAX_RUNTIME_SECONDS) -> tuple[dict[str, Listing], ScanStats]:
     """Walk every selected platform and category. Each platform fails independently."""
-    deadline = clock() + MAX_RUNTIME_SECONDS
+    deadline = clock() + max_runtime_seconds
     found: dict[str, Listing] = {}
     stats = ScanStats()
     for key in settings.sources:
@@ -344,9 +350,11 @@ def apply_age_filter(listings: list[Listing], max_age_days: int, today: date) ->
 
 
 def run_search(settings: Settings, fetcher: Fetcher, *, sleep: Callable[[float], None] = time.sleep,
-               clock: Callable[[], float] = time.monotonic, today: date | None = None) -> SearchResult:
+               clock: Callable[[], float] = time.monotonic, today: date | None = None,
+               max_runtime_seconds: int = MAX_RUNTIME_SECONDS) -> SearchResult:
     started = clock()
-    found, stats = scan(settings, fetcher, sleep=sleep, clock=clock)
+    found, stats = scan(settings, fetcher, sleep=sleep, clock=clock,
+                        max_runtime_seconds=max_runtime_seconds)
     matched = [item for item in found.values() if matches(item, settings)]
     before = len(matched)
     matched = merge_duplicates(matched)

@@ -61,7 +61,7 @@ async def search(request: SearchRequest) -> dict:
 
 def _run_search(settings: Settings):
     with BrowserFetcher() as fetcher:
-        return run_search(settings, fetcher)
+        return run_search(settings, fetcher, max_runtime_seconds=45)
 
 
 if __name__ == "__main__":

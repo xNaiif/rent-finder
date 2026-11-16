@@ -17,7 +17,10 @@ from typing import Iterator, Mapping
 
 # ───────────────────────── constants ─────────────────────────
 
-REQUEST_PAUSE = (2.0, 4.0)                  # seconds between page loads (politeness)
+REQUEST_PAUSE = (1.0, 2.0)                  # seconds between page loads (politeness)
+FETCH_TIMEOUT_SECONDS = 15                  # one browser navigation maximum
+WAIT_FOR_LISTING_SECONDS = 5                # client-rendered listing wait
+FETCH_TRIES = 2                             # avoid blocking the whole page on one source
 MAX_CONSECUTIVE_FAILURES = 2                # stop a category after N failed pages in a row
 MAX_RUNTIME_SECONDS = 40 * 60               # stop scanning gracefully and publish what we have
 DETAIL_LIMIT = 150                          # max detail pages opened when an age filter is set
