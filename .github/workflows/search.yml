@@ -1,0 +1,141 @@
+# المسار في المستودع: .github/workflows/search.yml
+name: search
+run-name: "بحث: ${{ inputs.types }} / ${{ inputs.sources }} حتى ${{ inputs.max_price }} ريال"
+
+# يعمل عند الضغط على Run workflow فقط (لا جدولة ولا تشغيل تلقائي)
+on:
+  workflow_dispatch:
+    inputs:
+      max_price:
+        description: "أقصى إيجار سنوي بالريال (الشهري يُضرب في 12)"
+        type: string
+        required: true
+        default: "40000"
+      min_price:
+        description: "أدنى إيجار سنوي بالريال"
+        type: string
+        required: false
+        default: "0"
+      types:
+        description: "نوع الوحدة"
+        type: choice
+        options: ["الكل", "شقق", "استراحات", "شاليهات", "مخيمات"]
+        default: "الكل"
+      period:
+        description: "فترة الإيجار"
+        type: choice
+        options: ["الكل", "سنوي", "شهري"]
+        default: "الكل"
+      sources:
+        description: "المنصات المراد البحث فيها"
+        type: choice
+        options: ["الكل", "بيوت", "عقار", "وصلت"]
+        default: "الكل"
+      districts:
+        description: "الأحياء (اختياري، افصل بفاصلة). فارغ = كل شرق الرياض"
+        type: string
+        required: false
+        default: ""
+      keywords:
+        description: "كلمات يجب أن تظهر في العنوان (اختياري، افصل بفاصلة)"
+        type: string
+        required: false
+        default: ""
+      min_area:
+        description: "أدنى مساحة بالمتر المربع (0 = بدون)"
+        type: string
+        required: false
+        default: "0"
+      max_age_days:
+        description: "أُضيف خلال كم يوماً (0 = بدون فلتر). يبطّئ البحث"
+        type: string
+        required: false
+        default: "0"
+      pages:
+        description: "أقصى عدد صفحات لكل فئة (25 إعلاناً للصفحة)"
+        type: string
+        required: false
+        default: "25"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: search
+  cancel-in-progress: false
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Unit tests
+        run: python -m unittest tests.test_parser
+
+      - name: Cache browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Chromium
+        run: |
+          python -m playwright install-deps chromium
+          python -m playwright install chromium
+
+      - name: Search
+        # المدخلات تمرَّر كمتغيرات بيئة وليس داخل أمر shell (أمان ضد الحقن)
+        env:
+          INPUT_MAX_PRICE: ${{ inputs.max_price }}
+          INPUT_MIN_PRICE: ${{ inputs.min_price }}
+          INPUT_TYPES: ${{ inputs.types }}
+          INPUT_PERIOD: ${{ inputs.period }}
+          INPUT_SOURCES: ${{ inputs.sources }}
+          INPUT_DISTRICTS: ${{ inputs.districts }}
+          INPUT_KEYWORDS: ${{ inputs.keywords }}
+          INPUT_MIN_AREA: ${{ inputs.min_area }}
+          INPUT_MAX_AGE_DAYS: ${{ inputs.max_age_days }}
+          INPUT_PAGES: ${{ inputs.pages }}
+        run: python -m rentfinder
+
+      - name: Package page
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+          retention-days: 1
+
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log
+          path: logs
+          retention-days: 3
+          if-no-files-found: ignore
+
+  deploy:
+    needs: search
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish page
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Link in summary
+        run: echo "### [افتح صفحة النتائج](${{ steps.deployment.outputs.page_url }})" >> "$GITHUB_STEP_SUMMARY"
