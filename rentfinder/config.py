@@ -41,13 +41,15 @@ PERIOD_ALIASES = {
     "annual": "annual", "سنوي": "annual", "سنوي فقط": "annual",
     "monthly": "monthly", "شهري": "monthly", "شهري فقط": "monthly",
 }
-SOURCE_KEYS = ("bayut", "aqar", "wasalt")
-SOURCE_LABELS = {"bayut": "بيوت", "aqar": "عقار", "wasalt": "وصلت"}
+SOURCE_KEYS = ("bayut", "aqar", "wasalt", "haraj", "daleel")
+SOURCE_LABELS = {"bayut": "بيوت", "aqar": "عقار", "wasalt": "وصلت", "haraj": "حراج", "daleel": "ديل"}
 SOURCE_ALIASES = {
     "all": "all", "الكل": "all",
     "bayut": "bayut", "بيوت": "bayut",
     "aqar": "aqar", "عقار": "aqar",
     "wasalt": "wasalt", "وصلت": "wasalt",
+    "haraj": "haraj", "حراج": "haraj",
+    "daleel": "daleel", "ديل": "daleel",
 }
 TYPE_LABELS = {"all": "الكل", "apartments": "شقق", "rest": "استراحات", "chalets": "شاليهات", "camps": "مخيمات"}
 PERIOD_LABELS = {"all": "سنوي وشهري", "annual": "سنوي", "monthly": "شهري"}

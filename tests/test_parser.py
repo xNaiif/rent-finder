@@ -17,7 +17,7 @@ from rentfinder.parser import (Listing, fold, parse_added, parse_page,
                                parse_relative)
 from rentfinder.search import (apply_age_filter, matches, merge_duplicates,
                                recency_key, run_search)
-from rentfinder.sites import AQAR, BAYUT, SITES, WASALT, Category
+from rentfinder.sites import AQAR, BAYUT, DALEEL, HARAJ, SITES, WASALT, Category
 
 BAYUT_HTML = """<html><head><title>test</title></head><body><ul>
 <li><a href="/%D8%A7%D9%84%D8%B9%D9%82%D8%A7%D8%B1/%D8%AA%D9%81%D8%A7%D8%B5%D9%8A%D9%84-88179062.html" title="استراحة للإيجار في شارع هجرة السلات, حي الرمال"><img></a>
@@ -56,6 +56,16 @@ WASALT_HTML = """<html><body><div class="grid">
  <div>Apartment with 1 Bedroom Al Qadisiyah, East Riyadh, Riyadh</div><div>20,000</div><div>SARyearly</div>
  <div>Al Qadisiyah, East Riyadh, Riyadh</div></a></div>
 </div></body></html>"""
+
+HARAJ_HTML = """<html><body><ul>
+<li><a href="/11192830574/شقة_للايجار_الرمال_الرياض/">شقة للايجار في حي الرمال الرياض</a>
+<div>35,000 ريال سنوي</div><div>150 م²</div><div>حي الرمال، الرياض</div></li>
+</ul></body></html>"""
+
+DALEEL_HTML = """<html><body><article>
+<a href="/property/riyadh-apartment-987654">شقة للايجار في حي اليرموك الرياض</a>
+<div>40,000 ريال سنوي</div><div>120 م²</div><div>حي اليرموك، الرياض</div>
+</article></body></html>"""
 
 HTML_BY_HOST = {"bayut.sa": BAYUT_HTML, "aqar.fm": AQAR_HTML, "wasalt.sa": WASALT_HTML}
 APT = Category("t_apt", "شقة", (("x",),))
@@ -142,6 +152,18 @@ class WasaltParserTests(unittest.TestCase):
         self.assertEqual(self.by["5790001"].hood, "Al Qadisiyah")   # price word glued in front is stripped
 
 
+class AdditionalSiteParserTests(unittest.TestCase):
+    def test_haraj_public_tag_results(self):
+        items, ids = parse_page(HARAJ_HTML, HARAJ, Category("haraj", "شقة", (("x",),)))
+        self.assertEqual(ids, ["11192830574"])
+        self.assertEqual((items[0].source, items[0].annual, items[0].hood), ("haraj", 35000, "الرمال"))
+
+    def test_daleel_public_card_shape(self):
+        items, ids = parse_page(DALEEL_HTML, DALEEL, Category("daleel", "شقة", (("x",),)))
+        self.assertEqual(ids, ["987654"])
+        self.assertEqual((items[0].source, items[0].annual, items[0].hood), ("daleel", 40000, "اليرموك"))
+
+
 class DateTests(unittest.TestCase):
     TODAY = date(2026, 11, 15)
 
@@ -165,12 +187,12 @@ class SettingsTests(unittest.TestCase):
     def test_defaults_and_arabic_digits(self):
         s = Settings.from_env({"INPUT_MAX_PRICE": "٤٠٠٠٠", "INPUT_TYPES": "شقق", "INPUT_PERIOD": "سنوي"})
         self.assertEqual((s.max_price, s.types, s.period), (40000, "apartments", "annual"))
-        self.assertEqual(s.sources, ("bayut", "aqar", "wasalt"))
+        self.assertEqual(s.sources, ("bayut", "aqar", "wasalt", "haraj", "daleel"))
 
     def test_sources(self):
         self.assertEqual(Settings.from_env({"INPUT_SOURCES": "عقار"}).sources, ("aqar",))
         self.assertEqual(Settings.from_env({"INPUT_SOURCES": "bayut, وصلت"}).sources, ("bayut", "wasalt"))
-        self.assertEqual(Settings.from_env({"INPUT_SOURCES": "الكل"}).sources, ("bayut", "aqar", "wasalt"))
+        self.assertEqual(Settings.from_env({"INPUT_SOURCES": "الكل"}).sources, ("bayut", "aqar", "wasalt", "haraj", "daleel"))
 
     def test_lists_split_on_arabic_comma(self):
         s = Settings.from_env({"INPUT_DISTRICTS": "الرمال، البيان,النسيم", "INPUT_KEYWORDS": "مفروش"})
@@ -179,7 +201,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_invalid_values_raise_clear_errors(self):
         for env in ({"INPUT_MAX_PRICE": "abc"}, {"INPUT_TYPES": "طائرات"}, {"INPUT_PAGES": "0"},
-                    {"INPUT_SOURCES": "حراج"}, {"INPUT_MIN_PRICE": "50000", "INPUT_MAX_PRICE": "1000"}):
+                    {"INPUT_SOURCES": "منصة غير موجودة"}, {"INPUT_MIN_PRICE": "50000", "INPUT_MAX_PRICE": "1000"}):
             with self.assertRaises(ConfigError, msg=env):
                 Settings.from_env(env)
 
@@ -267,7 +289,7 @@ class MultiSiteFlowTests(unittest.TestCase):
 
     def test_all_platforms_merge_and_label(self):
         result = run_search(settings(pages=2), self.Fetcher(), sleep=lambda _s: None)
-        self.assertEqual({k: s.status for k, s in result.stats.sites.items()}, {"bayut": "ok", "aqar": "ok", "wasalt": "ok"})
+        self.assertEqual({k: s.status for k, s in result.stats.sites.items()}, {"bayut": "ok", "aqar": "ok", "wasalt": "ok", "haraj": "blocked", "daleel": "blocked"})
         self.assertEqual(result.stats.seen, 5 + 3 + 2)
         self.assertEqual(result.merged, 1)                       # Aqar 35,000/150m²/الرمال == Bayut listing
         self.assertEqual(len(result.listings), 7)
@@ -301,7 +323,7 @@ class ReportTests(unittest.TestCase):
             blob = re.search(r'<script id="data" type="application/json">(.*?)</script>', html, re.S).group(1)
             data = json.loads(blob.replace("<\\/", "</"))
             self.assertEqual(len(data["listings"]), 7)
-            self.assertEqual({site["key"] for site in data["sites"]}, {"bayut", "aqar", "wasalt"})
+            self.assertEqual({site["key"] for site in data["sites"]}, {"bayut", "aqar", "wasalt", "haraj", "daleel"})
             with (Path(tmp) / "results.csv").open(encoding="utf-8-sig") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 7)

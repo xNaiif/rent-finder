@@ -147,4 +147,67 @@ WASALT = Site(
     keep=lambda text: "East Riyadh" in text or "شرق الرياض" in text,
 )
 
-SITES = {site.key: site for site in (BAYUT, AQAR, WASALT)}
+# ───────────────────────── haraj.com.sa ─────────────────────────
+
+
+def _haraj_plan(s: Settings) -> list[Category]:
+    if s.period == "monthly":
+        return []
+    if s.types == "apartments":
+        return [Category("haraj_apt", "شقة", (("شقة للايجار الرياض",),))]
+    if s.types in ("rest", "chalets", "camps"):
+        label = "مخيم" if s.types == "camps" else "استراحة"
+        tags = ("شاليه",) if s.types == "chalets" else ("مخيم",) if s.types == "camps" else ()
+        return [Category("haraj_rest", label, ((f"{label} للايجار الرياض",),), tags)]
+    return [Category("haraj_apt", "شقة", (("شقة للايجار الرياض",),)),
+            Category("haraj_rest", "استراحة", (("استراحة للايجار الرياض",),))]
+
+
+def _haraj_url(category: Category, path: tuple[str, ...], page: int) -> str:
+    query = path[0] if path else "عقار للايجار الرياض"
+    suffix = f"?page={page}" if page > 1 else ""
+    return "https://haraj.com.sa/tags/" + quote(query, safe="") + suffix
+
+
+HARAJ = Site(
+    key="haraj", label="حراج", base="https://haraj.com.sa",
+    id_re=re.compile(r"/(\d{8,})(?:/|[?#]|$)"),
+    price_res=(
+        re.compile(r"(\d[\d,]*)\s*(?:ريال|ر\.س|SAR)\s*(سنوي|شهري)", re.I),
+        re.compile(r"(?:السعر|price)\s*[:：]?\s*(\d[\d,]*)\s*(سنوي|شهري)", re.I),
+    ),
+    periods={"سنوي": "annual", "شهري": "monthly"},
+    hood_res=(re.compile(r"(?:حي|في\s+حي)\s+([^،,]+?)(?=\s+(?:الرياض|Riyadh)\b|[،,]|$)", re.I),),
+    plan=_haraj_plan, build_url=_haraj_url,
+    keep=lambda text: "الرياض" in text,
+)
+
+# ───────────────────────── dealapp.sa (Daleel) ─────────────────────────
+
+
+def _daleel_plan(s: Settings) -> list[Category]:
+    if s.period == "monthly" or s.types not in ("all", "apartments"):
+        return []
+    return [Category("daleel_apt", "شقة", (("شقق للايجار الرياض",),))]
+
+
+def _daleel_url(category: Category, path: tuple[str, ...], page: int) -> str:
+    query = path[0] if path else "شقق للايجار الرياض"
+    params = f"?q={quote(query, safe='')}"
+    return "https://dealapp.sa/ar/" + params + (f"&page={page}" if page > 1 else "")
+
+
+DALEEL = Site(
+    key="daleel", label="ديل", base="https://dealapp.sa",
+    id_re=re.compile(r"/(?:property|listing|عقار)/[^?#]*?(\d{4,10})(?:[/?#]|$)", re.I),
+    price_res=(
+        re.compile(r"(\d[\d,]*)\s*(?:ريال|ر\.س|SAR)\s*(سنوي|شهري|yearly|monthly)", re.I),
+        re.compile(r"(?:السعر|price)\s*[:：]?\s*(\d[\d,]*)\s*(سنوي|شهري|yearly|monthly)", re.I),
+    ),
+    periods={"سنوي": "annual", "شهري": "monthly", "yearly": "annual", "monthly": "monthly"},
+    hood_res=(re.compile(r"(?:حي|في\s+حي)\s+([^،,]+?)(?=\s+(?:الرياض|Riyadh)\b|[،,]|$)", re.I),),
+    plan=_daleel_plan, build_url=_daleel_url,
+    keep=lambda text: "الرياض" in text or "Riyadh" in text,
+)
+
+SITES = {site.key: site for site in (BAYUT, AQAR, WASALT, HARAJ, DALEEL)}

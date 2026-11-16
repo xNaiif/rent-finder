@@ -29,7 +29,7 @@ on:
       sources:
         description: "المنصات المراد البحث فيها"
         type: choice
-        options: ["الكل", "بيوت", "عقار", "وصلت"]
+        options: ["الكل", "بيوت", "عقار", "وصلت", "حراج", "ديل"]
         default: "الكل"
       districts:
         description: "الأحياء (اختياري، افصل بفاصلة). فارغ = كل شرق الرياض"
@@ -81,6 +81,11 @@ jobs:
 
       - name: Unit tests
         run: python -m unittest tests.test_parser
+
+      - name: Dependency audit
+        run: |
+          pip install pip-audit
+          pip-audit -r requirements.txt
 
       - name: Cache browser
         uses: actions/cache@v4
